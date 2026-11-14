@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.15)
+project(Terminal_MarkDown_Renderer C)
+set(CMAKE_C_STANDARD 11)
+add_subdirectory(3rd-party/md4c 3rd-party/md4c/build/src)
+add_executable(tmd tmd.c)
+target_link_libraries(tmd PRIVATE md4c)
