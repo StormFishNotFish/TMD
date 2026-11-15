@@ -13,12 +13,14 @@
  *
  */
 #define CLEANUP(rcode) do{munmap(md_string, md_size);return rcode;}while(0);
-#define PRINT_BLOCKQUOTE() for(int i = 0; i < (bq_level); i++){ fprintf(extra, "| ");/*if(after_blockquote)after_blockquote = false;*/}//Should check before every line   
+#define PRINT_BLOCKQUOTE() {\
+   \
+    /*fprintf(stderr, "%d", bq_level);*/\
+    for(int i = 0; i < (bq_level); i++){ fprintf(extra, "| ");fflush(extra);} }//Should check before every line   
 struct winsize winsiz;
 uint32_t ul_level;
 uint32_t ol_level;
 uint32_t bq_level;//level of blockquote
-bool after_blockquote;
 const MD_CHAR* ul_chars[] = {
     "•",  
     "◦", 
@@ -72,6 +74,9 @@ int exit_block(MD_BLOCKTYPE type, void* detail, void* extra/*extra is stdout*/) 
         case MD_BLOCK_H:
             // fprintf(extra, "\n");
         case MD_BLOCK_QUOTE:
+            fprintf(extra, "\033[2K\r");
+            /* In the line when blockquote ends, blockquote will be printed when the previous line breaks. Needs to erase the whole line.
+             */
             bq_level--;
             break;
         case MD_BLOCK_UL:
@@ -81,14 +86,14 @@ int exit_block(MD_BLOCKTYPE type, void* detail, void* extra/*extra is stdout*/) 
             ul_level--;
             break;
         case MD_BLOCK_LI:
-            fprintf(extra, "\n");
+            fprintf(extra, "\n");//Creates a new line 
             PRINT_BLOCKQUOTE();
             break;
         case MD_BLOCK_HR:
              
             break;
         case MD_BLOCK_P:
-            fprintf(extra, "\n");
+            fprintf(extra, "\n");//Also creates a new line!
             PRINT_BLOCKQUOTE();
             break;
     }
@@ -171,7 +176,7 @@ int text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* extra) {
             fprintf(extra, "%.*s", size, text); 
             break;
     }
-    // fflush(extra);
+    fflush(extra);
     return 0;
 }
 
