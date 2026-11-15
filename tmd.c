@@ -5,12 +5,16 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/types.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdbool.h>
 /* For CSI Code see https://xtermjs.org/docs/api/vtfeatures/#csi
  *
  */
+#define CLEANUP(rcode) do{munmap(md_string, md_size);return rcode;}while(0);
+struct winsize winsiz;
+
 static struct parser_context_t {//Records list levels, more soon
     uint32_t ul_level;
     uint32_t ol_level;
@@ -21,6 +25,9 @@ const MD_CHAR* ul_chars[] = {
     "◦", 
     "▪" 
 };
+
+MD_CHAR *md_string = NULL;
+MD_SIZE md_size = 0;
 /* UTF-8 chars holds three bytes maximum. For alignment, the last byte will fill as NUL char.
  * Also, it helps stdlib spliting the chars(also me).
  * Usage: ul_chars[uchar_index * 4]
@@ -43,12 +50,12 @@ int enter_block(MD_BLOCKTYPE type, void* detail, void* extra/*extra is stdout*/)
             parser_context.ul_level++;
             break;
         case MD_BLOCK_LI:
-            if(!detail)exit(3);
+            if(!detail)CLEANUP(3);
             MD_BLOCK_LI_DETAIL *li_detail = (MD_BLOCK_LI_DETAIL*)detail;
             if(!li_detail->is_task) {//Add OL Impl
                 for(int i = 0; i < parser_context.ul_level; i++) fprintf(extra, "\t");
                 uint8_t bullet_index = (parser_context.ul_level > 2 ? 2 : parser_context.ul_level - 1);
-                if(bullet_index < 0)exit(4);//Unexcepted Error!
+                if(bullet_index < 0)CLEANUP(4);//Unexcepted Error!
                 // fprintf(stderr, "[DEBUG]bullet_index: %d[DBGEND]", (int)bullet_index);
                 fprintf(extra, "%s", ul_chars[bullet_index]);
             }//TODO: ADD TASKLIST IMPL
@@ -78,6 +85,7 @@ int exit_block(MD_BLOCKTYPE type, void* detail, void* extra/*extra is stdout*/) 
             fprintf(extra, "\n");
             break;
         case MD_BLOCK_HR:
+             
             break;
         case MD_BLOCK_P:
             fprintf(extra, "\n");
@@ -135,9 +143,9 @@ int enter_span(MD_SPANTYPE type, void* detail, void* extra) {
             fprintf(extra, "\033[104m");
             break;
         case MD_SPAN_A:
-            if(!detail)exit(3);
+            if(!detail)CLEANUP(3);
             MD_SPAN_A_DETAIL *a_detail = (MD_SPAN_A_DETAIL*)detail;
-            fprintf(extra, "\033]8;;%.*s\033\\", a_detail->href.size, a_detail->href.text);
+            fprintf(extra, "\033]8;;%.*s\033\\", a_detail->href.size, a_detail->href.text);//OSC 8
             break;
     }
     return 0;
@@ -199,6 +207,7 @@ int main(int argc, char** argv) {
         printf("Usage: %s <filename.md>", argv[0]);
         return 1;
     }
+
     MD_CHAR *md_string = NULL;
     MD_SIZE md_size = 0;
     readfile(argv[1], &md_size, &md_string);
@@ -206,6 +215,12 @@ int main(int argc, char** argv) {
         printf("Error occurred in readfile\n");
         return 2;
     }
+    
+    if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &winsiz) == -1) {
+        perror("ioctl");
+        CLEANUP(5);   
+    }
+
     int flags = MD_FLAG_STRIKETHROUGH | MD_FLAG_UNDERLINE | MD_FLAG_HIGHLIGHT; 
     MD_PARSER parser = {
         .enter_block = enter_block,
@@ -218,6 +233,5 @@ int main(int argc, char** argv) {
     };
 
     md_parse(md_string, md_size, &parser, stdout);
-    munmap(md_string, md_size);
-    return 0;
+    CLEANUP(0);
 }
