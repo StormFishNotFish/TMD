@@ -13,13 +13,12 @@
  *
  */
 #define CLEANUP(rcode) do{munmap(md_string, md_size);return rcode;}while(0);
+#define PRINT_BLOCKQUOTE() for(int i = 0; i < (bq_level); i++){ fprintf(extra, "| ");/*if(after_blockquote)after_blockquote = false;*/}//Should check before every line   
 struct winsize winsiz;
-
-static struct parser_context_t {//Records list levels, more soon
-    uint32_t ul_level;
-    uint32_t ol_level;
-}parser_context;
-
+uint32_t ul_level;
+uint32_t ol_level;
+uint32_t bq_level;//level of blockquote
+bool after_blockquote;
 const MD_CHAR* ul_chars[] = {
     "•",  
     "◦", 
@@ -41,20 +40,20 @@ int enter_block(MD_BLOCKTYPE type, void* detail, void* extra/*extra is stdout*/)
         case MD_BLOCK_H:
             break;
         case MD_BLOCK_QUOTE:
-            fprintf(extra, "█ ");
-            break;
+            bq_level++;
+            fprintf(extra, "| ");            break;
         case MD_BLOCK_UL:
-            parser_context.ul_level++;
+            ul_level++;
             break;
         case MD_BLOCK_OL://TODO: ADD ORDER LIST MPL
-            parser_context.ul_level++;
+            ul_level++;
             break;
         case MD_BLOCK_LI:
             if(!detail)CLEANUP(3);
             MD_BLOCK_LI_DETAIL *li_detail = (MD_BLOCK_LI_DETAIL*)detail;
             if(!li_detail->is_task) {//Add OL Impl
-                for(int i = 0; i < parser_context.ul_level; i++) fprintf(extra, "\t");
-                uint8_t bullet_index = (parser_context.ul_level > 2 ? 2 : parser_context.ul_level - 1);
+                for(int i = 0; i < ul_level; i++) fprintf(extra, "\t");
+                uint8_t bullet_index = (ul_level > 2 ? 2 : ul_level - 1);
                 if(bullet_index < 0)CLEANUP(4);//Unexcepted Error!
                 // fprintf(stderr, "[DEBUG]bullet_index: %d[DBGEND]", (int)bullet_index);
                 fprintf(extra, "%s", ul_chars[bullet_index]);
@@ -73,22 +72,24 @@ int exit_block(MD_BLOCKTYPE type, void* detail, void* extra/*extra is stdout*/) 
         case MD_BLOCK_H:
             // fprintf(extra, "\n");
         case MD_BLOCK_QUOTE:
-            fprintf(extra, "\n");
+            bq_level--;
             break;
         case MD_BLOCK_UL:
-            parser_context.ul_level--;
+            ul_level--;
             break;
         case MD_BLOCK_OL://TODO: ADD ORDER LIST IMPL
-            parser_context.ul_level--;
+            ul_level--;
             break;
         case MD_BLOCK_LI:
             fprintf(extra, "\n");
+            PRINT_BLOCKQUOTE();
             break;
         case MD_BLOCK_HR:
              
             break;
         case MD_BLOCK_P:
             fprintf(extra, "\n");
+            PRINT_BLOCKQUOTE();
             break;
     }
     return 0;
@@ -156,12 +157,12 @@ int enter_span(MD_SPANTYPE type, void* detail, void* extra) {
 // }
 //Print normal text
 int text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* extra) {
-    
+
     // fprintf(stderr, "\033[31m[DEBUG TEXT] Type: %d, Content: '%.*s'[DEBUG TEXT]\033[39m", type, (int)size, text);
-    
     switch(type){
         case MD_TEXT_BR:
             fprintf(extra, "\n");
+            PRINT_BLOCKQUOTE();
             break;
         case MD_TEXT_SOFTBR:
             fprintf(extra, " ");
