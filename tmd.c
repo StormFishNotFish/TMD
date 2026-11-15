@@ -106,6 +106,9 @@ int exit_span(MD_SPANTYPE type, void* detail, void* extra) {
         case MD_SPAN_MARK:
             fprintf(extra, "\033[49m");
             break;
+        case MD_SPAN_A:
+            fprintf(extra, "\033]8;;\033\\");
+            break;
     }
     return 0;
 }
@@ -130,6 +133,11 @@ int enter_span(MD_SPANTYPE type, void* detail, void* extra) {
             break;
         case MD_SPAN_MARK:
             fprintf(extra, "\033[104m");
+            break;
+        case MD_SPAN_A:
+            if(!detail)exit(3);
+            MD_SPAN_A_DETAIL *a_detail = (MD_SPAN_A_DETAIL*)detail;
+            fprintf(extra, "\033]8;;%.*s\033\\", a_detail->href.size, a_detail->href.text);
             break;
     }
     return 0;
