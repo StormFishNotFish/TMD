@@ -70,6 +70,7 @@ int enter_block(MD_BLOCKTYPE type, void* detail, void* extra/*extra is stdout*/)
                 if(bullet_index < 0)CLEANUP(4);//Unexcepted Error!
                 // fprintf(stderr, "[DEBUG]bullet_index: %d[DBGEND]", (int)bullet_index);
                 fprintf(extra, "%s", ul_chars[bullet_index]);
+                stats &= (~STAT_NEWLINE);
             }//TODO: ADD TASKLIST IMPL
             break;
         case MD_BLOCK_HR:
@@ -180,6 +181,7 @@ int text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* extra) {
         default:
             if(stats & STAT_NEWLINE) {
                 PRINT_TAB();
+                fprintf(extra, " ");//place hold for the bullet.
                 PRINT_BLOCKQUOTE();
                 stats &= (~STAT_NEWLINE);
             }
