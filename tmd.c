@@ -13,14 +13,21 @@
  *
  */
 #define CLEANUP(rcode) do{munmap(md_string, md_size);return rcode;}while(0);
-#define PRINT_BLOCKQUOTE() {\
-   \
-    /*fprintf(stderr, "%d", bq_level);*/\
-    for(int i = 0; i < (bq_level); i++){ fprintf(extra, "| ");fflush(extra);} }//Should check before every line   
+#define PRINT_BLOCKQUOTE() {/*fprintf(stderr, "%d", bq_level);*/\
+    for(int i = 0; i < (bq_level); i++){ fprintf(extra, "| ");fflush(extra);} }//Should check before every line  
+#define PRINT_RETURN() {\
+    fprintf(extra, "\n"); stats |= STAT_NEWLINE;\
+}
+#define PRINT_TAB() {\
+    for(int i = 0; i < ul_level; i++) fprintf(extra, "\t");\
+}
+#define STAT_NEWLINE 0x00000001
+#define STAT_NEWBQLVL 0x00000002
 struct winsize winsiz;
 uint32_t ul_level;
 uint32_t ol_level;
 uint32_t bq_level;//level of blockquote
+uint32_t stats;
 const MD_CHAR* ul_chars[] = {
     "•",  
     "◦", 
@@ -43,7 +50,10 @@ int enter_block(MD_BLOCKTYPE type, void* detail, void* extra/*extra is stdout*/)
             break;
         case MD_BLOCK_QUOTE:
             bq_level++;
-            fprintf(extra, "| ");            break;
+            if(!(stats & STAT_NEWLINE))fprintf(extra, "| ");
+            /* When you're in line 2, line one triggled new line. Then you print one quote and add the level. But then, when you print your text, you add one new blockquote which you have printed. That makes a unwanted quote.
+             */
+            break;
         case MD_BLOCK_UL:
             ul_level++;
             break;
@@ -53,8 +63,9 @@ int enter_block(MD_BLOCKTYPE type, void* detail, void* extra/*extra is stdout*/)
         case MD_BLOCK_LI:
             if(!detail)CLEANUP(3);
             MD_BLOCK_LI_DETAIL *li_detail = (MD_BLOCK_LI_DETAIL*)detail;
-            if(!li_detail->is_task) {//Add OL Impl
-                for(int i = 0; i < ul_level; i++) fprintf(extra, "\t");
+            PRINT_BLOCKQUOTE();//LI must in a new line
+            if(!li_detail->is_task) {//TODO:Add OL Impl
+                PRINT_TAB();
                 uint8_t bullet_index = (ul_level > 2 ? 2 : ul_level - 1);
                 if(bullet_index < 0)CLEANUP(4);//Unexcepted Error!
                 // fprintf(stderr, "[DEBUG]bullet_index: %d[DBGEND]", (int)bullet_index);
@@ -74,9 +85,6 @@ int exit_block(MD_BLOCKTYPE type, void* detail, void* extra/*extra is stdout*/) 
         case MD_BLOCK_H:
             // fprintf(extra, "\n");
         case MD_BLOCK_QUOTE:
-            fprintf(extra, "\033[2K\r");
-            /* In the line when blockquote ends, blockquote will be printed when the previous line breaks. Needs to erase the whole line.
-             */
             bq_level--;
             break;
         case MD_BLOCK_UL:
@@ -86,15 +94,13 @@ int exit_block(MD_BLOCKTYPE type, void* detail, void* extra/*extra is stdout*/) 
             ul_level--;
             break;
         case MD_BLOCK_LI:
-            fprintf(extra, "\n");//Creates a new line 
-            PRINT_BLOCKQUOTE();
+            PRINT_RETURN(); 
             break;
         case MD_BLOCK_HR:
              
             break;
         case MD_BLOCK_P:
-            fprintf(extra, "\n");//Also creates a new line!
-            PRINT_BLOCKQUOTE();
+            PRINT_RETURN();
             break;
     }
     return 0;
@@ -166,13 +172,17 @@ int text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* extra) {
     // fprintf(stderr, "\033[31m[DEBUG TEXT] Type: %d, Content: '%.*s'[DEBUG TEXT]\033[39m", type, (int)size, text);
     switch(type){
         case MD_TEXT_BR:
-            fprintf(extra, "\n");
-            PRINT_BLOCKQUOTE();
+            PRINT_RETURN();
             break;
         case MD_TEXT_SOFTBR:
             fprintf(extra, " ");
             break;
         default:
+            if(stats & STAT_NEWLINE) {
+                PRINT_TAB();
+                PRINT_BLOCKQUOTE();
+                stats &= (~STAT_NEWLINE);
+            }
             fprintf(extra, "%.*s", size, text); 
             break;
     }
